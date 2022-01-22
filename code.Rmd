@@ -1,0 +1,391 @@
+---
+title: "team_project2"
+author: "Tianyun Hou"
+date: "10/13/2021"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(lme4)
+library(sjPlot)
+library(lattice)
+library(arm)
+```
+# PART 1
+```{r}
+load("/Users/htyun/Downloads/streetrx.RData")
+streetrx
+```
+```{r}
+data <- streetrx %>%
+  dplyr::select(-c("yq_pdate", "price_date", "city","Primary_Reason")) %>%
+  filter(api_temp=="oxymorphone") %>%
+  drop_na()
+
+summary(data)
+str(data)
+
+data$source_n <- rep('Other',nrow(data))
+data$source_n[data$source == "Personal"] <- "Personal"
+data$source_n[data$source == "Heard it"] <- "Heard it"
+data$source_n[data$source == "Internet"] <- "Internet"
+data$source_n[data$source == "Internet Pharmacy"] <- "Internet"
+data$source_n <- factor(data$source_n)
+
+summary(data)
+
+```
+
+```{r}
+ggplot(data,aes(ppm)) +
+geom_histogram(aes(y=..density..),color="black",linetype="dashed",
+fill=rainbow(15),bins=15) + theme(legend.position="none") +
+geom_density(alpha=.25, fill="lightblue") + scale_fill_brewer(palette="Blues") +
+labs(title="Distribution of ppm",y="ppm") + theme_classic()
+
+# logppm distribution
+data$logppm <- log(data$ppm)
+ggplot(data,aes(logppm)) +
+geom_histogram(aes(y=..density..),color="black",linetype="dashed",
+fill=rainbow(15),bins=15) + theme(legend.position="none") +
+geom_density(alpha=.25, fill="lightblue") + scale_fill_brewer(palette="Blues") +
+labs(title="Distribution of ppm",y="logppm") + theme_classic()
+
+
+ggplot(data,
+aes(x=USA_region, y=logppm, fill=USA_region)) +
+geom_boxplot() +
+labs(title="Log ppm by region",
+x="Region",y="Log ppm") + theme_classic() +
+theme(legend.position="none",axis.text.x = element_text(angle = 90))
+
+# source
+ggplot(data,aes(x=source_n, y=logppm, fill=source_n)) +
+geom_boxplot() + scale_fill_brewer(palette="Greens") +
+labs(title="Log ppm vs source", x="source",y="Log ppm") +
+theme_classic() + theme(legend.position="none")
+
+# form_temp
+ggplot(data,aes(x=form_temp, y=logppm, fill=form_temp)) +
+geom_boxplot() + scale_fill_brewer(palette="Greens") +
+labs(title="Log ppm vs form_temp", x="form_temp",y="Log ppm") +
+theme_classic() + theme(legend.position="none")
+
+table(data$form_temp)
+
+# mgstr
+ggplot(data,aes(x=mgstr, y=logppm)) +
+  geom_point(alpha = .5,colour="blue4") +
+  geom_smooth(method="lm",col="red3") + theme_classic() +
+  labs(title="mgstr vs log ppm",x="mgstr",y="Log ppm")
+
+mgstr_mean <- aggregate(data$logppm,list(mgstr=data$mgstr),mean)
+colnames(mgstr_mean)[2] <- "AVG_logppm"
+ggplot(mgstr_mean, aes(x = mgstr, y = AVG_logppm)) +
+  geom_point(alpha = .5,colour="blue4") +
+  geom_smooth(method="lm",col="red3") +
+  theme_classic() +
+  labs(title="Mean log pppm vs mgstr")
+
+# bulk_purchase
+ggplot(data,aes(x=bulk_purchase, y=logppm, fill=bulk_purchase)) +
+geom_boxplot() + scale_fill_brewer(palette="Greens") +
+labs(title="Log ppm vs bulk_purchase", x="bulk_purchase",y="Log ppm") +
+theme_classic() + theme(legend.position="none")
+
+
+lm1 <- lm(logppm~ source_n + bulk_purchase + mgstr, data=data)
+summary(lm1)
+plot(lm1,which=5,col=c("blue4"))
+data[2147,]
+data[3257,]
+data[3258,]
+
+data2 <- data[-c(2147,3257,3258),]
+summary(data2)
+```
+
+
+
+
+
+
+
+```{r}
+voter = read.csv("voter_stats_20201103.txt", sep="\t")
+hist = read.csv("history_stats_20201103.txt", sep="\t")
+#nrow(voter)
+```
+
+```{r}
+# hist <- hist %>% 
+#   dplyr::select(-c("election_date", "stats_type","update_date", "party_cd")) %>% 
+#   rename(party_cd=voted_party_cd)
+
+# aggregated_hist <- aggregate(hist$total_voters,
+#                              list(county=hist$county_desc, precinct=hist$precinct_abbrv, vtd=hist$vtd_abbrv, age=hist$age,party=hist$party_cd, race=hist$race_code, ethnic=hist$ethnic_code, sex=hist$sex_code), sum)
+
+# agg_hist <- hist %>%
+#   group_by(county_desc, age, party_cd, race_code, ethnic_code, sex_code, precinct_abbrv, vtd_abbrv) %>%
+#   summarise(total_voters = sum(total_voters))
+
+# voter <- voter %>%
+#   rename(total_registered_voters = total_voters) %>%
+#   dplyr::select(-c("election_date", "stats_type","update_date"))
+
+# agg_hist %>%
+#   dplyr::select(-c("precinct_abbrv", "vtd_abbrv"))
+
+# data <- merge(agg_hist, voter, by = c("precinct_abbrv", "vtd_abbrv","county_desc", "age", "party_cd", "race_code", "ethnic_code", "sex_code"), all.x = TRUE)
+# 
+# summary(data)
+# nrow(voter)
+# nrow(agg_hist)
+# nrow(hist)
+# nrow(data)
+# 
+# data %>%
+#   filter(total_voters > total_registered_voters)
+```
+```{r}
+hist2 <- hist %>% 
+  dplyr::select(-c("election_date", "stats_type","update_date", "party_cd", "precinct_abbrv", "vtd_abbrv")) %>% 
+  rename(party_cd=voted_party_cd)
+
+agg_hist2 <- hist %>%
+  group_by(county_desc, age, party_cd, race_code, ethnic_code, sex_code) %>%
+  summarise(total_voters = sum(total_voters))
+
+voter2 <- voter %>%
+  rename(total_registered_voters = total_voters) %>%
+  dplyr::select(-c("election_date", "stats_type","update_date", "precinct_abbrv", "vtd_abbrv"))
+
+voter2 <- voter2 %>%
+  group_by(county_desc, age, party_cd, race_code, ethnic_code, sex_code) %>%
+  summarise(total_registered_voters = sum(total_registered_voters))
+
+data2 <- merge(agg_hist2, voter2, by = c("county_desc", "age", "party_cd", "race_code", "ethnic_code", "sex_code"), all.x = TRUE)
+
+data2 %>%
+  filter(total_voters > total_registered_voters)
+
+```
+
+```{r}
+set.seed(1000)
+sample_county <- sample(unique(data2$county_desc),25,replace=F)
+```
+
+```{r}
+sample <- data2 %>%
+  filter(county_desc %in% sample_county)
+
+summary(sample)
+#sample
+
+#sample %>%
+  #filter(total_voters>total_registered_voters)
+
+sample$turn_out = sample$total_voters/sample$total_registered_voters
+```
+
+```{r}
+table(sample$county_desc)
+
+# ggplot(sample,aes(turn_out)) +
+# geom_histogram(aes(y=..density..),color="black",linetype="dashed",
+# fill=rainbow(15),bins=15) + theme(legend.position="none") +
+# geom_density(alpha=.25, fill="lightblue") + scale_fill_brewer(palette="Blues") +
+# labs(title="Distribution of Turnout Rate",y="Turnout") + theme_classic()
+
+ggplot(sample[is.element(sample$county_desc,sample_county),],
+aes(x=county_desc, y=turn_out, fill=county_desc)) +
+geom_boxplot() +
+labs(title="Turn Out Rate by county",
+x="County",y="Turnout Rate") + theme_classic() +
+theme(legend.position="none",axis.text.x = element_text(angle = 90))
+
+
+```
+```{r}
+ggplot(sample,aes(x=age, y=turn_out, fill=age)) +
+geom_boxplot() + scale_fill_brewer(palette="Greens") +
+labs(title="Turnout Rate vs age", x="age",y="Turnout Rate") +
+theme_classic() + theme(legend.position="none")
+
+ggplot(sample,aes(x=party_cd, y=turn_out, fill=party_cd)) +
+geom_boxplot() + scale_fill_brewer(palette="Greens") +
+labs(title="Turnout Rate vs party", x="party",y="Turnout Rate") +
+theme_classic() + theme(legend.position="none")
+
+ggplot(sample,aes(x=race_code, y=turn_out, fill=race_code)) +
+geom_boxplot() + scale_fill_brewer(palette="Greens") +
+labs(title="Turnout Rate vs race", x="race",y="Turnout Rate") +
+theme_classic() + theme(legend.position="none")
+
+ggplot(sample,aes(x=ethnic_code, y=turn_out, fill=ethnic_code)) +
+geom_boxplot() + scale_fill_brewer(palette="Greens") +
+labs(title="Turnout Rate vs ethnic", x="ethnic",y="Turnout Rate") +
+theme_classic() + theme(legend.position="none")
+
+ggplot(sample,aes(x=sex_code, y=turn_out, fill=sex_code)) +
+geom_boxplot() + scale_fill_brewer(palette="Greens") +
+labs(title="Turnout Rate vs sex", x="sex",y="Turnout Rate") +
+theme_classic() + theme(legend.position="none")
+
+#table(sample$party_cd)
+table(sample$race_code)
+```
+```{r}
+ggplot(sample[is.element(sample$county_desc,sample_county),],
+aes(x=age, y=turn_out, fill=age)) +
+geom_boxplot() +
+scale_fill_brewer(palette="Greens") +
+labs(title="Turnout Rate vs age by county",
+x="age",y="turnout rate") +
+theme_classic() + theme(legend.position="none") +
+facet_wrap( ~ county_desc,ncol=4)
+
+ggplot(sample[is.element(sample$county_desc,sample_county),],
+aes(x=party_cd, y=turn_out, fill=party_cd)) +
+geom_boxplot() +
+scale_fill_brewer(palette="Greens") +
+labs(title="Turnout Rate vs party_cd by county",
+x="party_cd",y="turnout rate") +
+theme_classic() + theme(legend.position="none") +
+facet_wrap( ~ county_desc,ncol=4)
+
+ggplot(sample[is.element(sample$county_desc,sample_county),],
+aes(x=race_code, y=turn_out, fill=race_code)) +
+geom_boxplot() +
+scale_fill_brewer(palette="Greens") +
+labs(title="Turnout Rate vs race by county",
+x="race",y="turnout rate") +
+theme_classic() + theme(legend.position="none") +
+facet_wrap( ~ county_desc,ncol=4)
+
+ggplot(sample[is.element(sample$county_desc,sample_county),],
+aes(x=ethnic_code, y=turn_out, fill=ethnic_code)) +
+geom_boxplot() +
+scale_fill_brewer(palette="Greens") +
+labs(title="Turnout Rate vs ethnic by county",
+x="ethnic",y="turnout rate") +
+theme_classic() + theme(legend.position="none") +
+facet_wrap( ~ county_desc,ncol=4)
+
+ggplot(sample[is.element(sample$county_desc,sample_county),],
+aes(x=sex_code, y=turn_out, fill=sex_code)) +
+geom_boxplot() +
+scale_fill_brewer(palette="Greens") +
+labs(title="Turnout Rate vs sex by county",
+x="sex",y="turnout rate") +
+theme_classic() + theme(legend.position="none") +
+facet_wrap( ~ county_desc,ncol=4)
+```
+```{r}
+m1 <- glm(cbind(total_voters,total_registered_voters-total_voters)~age+party_cd+race_code+ethnic_code+ sex_code+county_desc,data=sample,family=binomial)
+
+#summary(m1)
+
+m2 <- glm(cbind(total_voters,total_registered_voters-total_voters)~age+party_cd+race_code+ethnic_code+ sex_code*county_desc,data=sample,family=binomial)
+anova(m1,m2,test="Chisq")
+
+m3 <- glm(cbind(total_voters,total_registered_voters-total_voters)~age+party_cd+race_code+ethnic_code*county_desc+ sex_code,data=sample,family=binomial)
+anova(m1,m3,test="Chisq")
+
+m4 <- glm(cbind(total_voters,total_registered_voters-total_voters)~age+party_cd+race_code*county_desc+ethnic_code+ sex_code,data=sample,family=binomial)
+anova(m1,m4,test="Chisq")
+
+m5 <- glm(cbind(total_voters,total_registered_voters-total_voters)~age+party_cd*county_desc+race_code+ethnic_code+ sex_code,data=sample,family=binomial)
+anova(m1,m5,test="Chisq")
+
+m6 <- glm(cbind(total_voters,total_registered_voters-total_voters)~age*county_desc+party_cd+race_code+ethnic_code+ sex_code,data=sample,family=binomial)
+anova(m1,m6,test="Chisq")
+
+m7 <- glm(cbind(total_voters,total_registered_voters-total_voters)~age* sex_code+county_desc+party_cd+race_code+ethnic_code,data=sample,family=binomial)
+anova(m1,m7,test="Chisq")
+
+
+
+```
+```{r}
+sample$county_desc = factor(sample$county_desc)
+sample$age = factor(sample$age)
+sample$party_cd = factor(sample$party_cd)
+sample$race_code = factor(sample$race_code)
+sample$ethnic_code = factor(sample$ethnic_code)
+sample$sex_code = factor(sample$sex_code)
+
+```
+
+```{r}
+model1 <- glmer(cbind(total_voters,total_registered_voters-total_voters) ~ age+party_cd+race_code+ethnic_code+ sex_code+ (1|county_desc), family=binomial(link="logit"),data=sample)
+summary(model1)
+
+dotplot(ranef(model1, condVar=TRUE))
+
+rawresid1 <- residuals(model1,"resp")
+
+#binned residual plots
+binnedplot(x=fitted(model1),y=rawresid1,xlab="Pred. probabilities",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+
+
+model2 <- glmer(cbind(total_voters,total_registered_voters-total_voters) ~ age+party_cd+race_code+ethnic_code+ sex_code+ (1|county_desc) + sex_code:party_cd, family=binomial(link="logit"),data=sample)
+summary(model2)
+# fail to converge
+
+table(sample$sex_code, sample$party_cd)
+
+# sex vs party
+model3 <- glmer(cbind(total_voters,total_registered_voters-total_voters) ~ age+race_code+ethnic_code+ (1|county_desc) + (1|sex_code:party_cd), family=binomial(link="logit"),data=sample)
+summary(model3)
+dotplot(ranef(model3, condVar=TRUE))
+tab_model(model3)
+
+# age vs party
+model4 <- glmer(cbind(total_voters,total_registered_voters-total_voters) ~ age+party_cd+race_code+ethnic_code+ sex_code+ (1|county_desc) + age:party_cd, family=binomial(link="logit"),data=sample)
+summary(model4)
+
+model5 <- glmer(cbind(total_voters,total_registered_voters-total_voters) ~ race_code+ethnic_code+ (1|county_desc) + (1|age:party_cd) + (1|sex_code:party_cd), family=binomial(link="logit"),data=sample)
+summary(model5)
+dotplot(ranef(model5, condVar=TRUE))
+tab_model(model5)
+
+rawresid5 <- residuals(model5,"resp")
+
+#binned residual plots
+binnedplot(x=fitted(model5),y=rawresid5,xlab="Pred. probabilities",
+           col.int="red4",ylab="Avg. residuals",main="Binned residual plot",col.pts="navy")
+
+model6 <- glmer(cbind(total_voters,total_registered_voters-total_voters) ~ ethnic_code+ (race_code|county_desc) + (1|age:party_cd) + (1|sex_code:party_cd), family=binomial(link="logit"),data=sample)
+summary(model6)
+
+
+```
+```{r}
+model2 <- glmer(cbind(total_voters,total_registered_voters-total_voters) ~ age+party_cd+race_code+ethnic_code+ sex_code+ (1|county_desc) + sex_code:party_cd, family=binomial(link="logit"),data=sample)
+summary(model2)
+
+final_model <- glmer(cbind(total_voters,total_registered_voters-total_voters) ~ age+party_cd+race_code+ethnic_code+ sex_code+ (1|county_desc) + sex_code:party_cd + party_cd:age, family=binomial(link="logit"),data=sample,control=glmerControl(optimizer="bobyqa",optCtrl=list(maxfun=2e5)))
+```
+```{r echo=FALSE}
+library(sjPlot)
+library(sjmisc)
+library(ggplot2)
+
+```
+
+```{r echo=FALSE}
+theme_set(theme_sjplot())
+
+plot_model(final_model, type = "pred", terms = c("party_cd", "sex_code"), title = "Predicted Probabilities for 100% Voter Turnout", axis.title = c("Party Affiliation","Predicted Probability"), legend.title = "Sex")
+
+plot_model(final_model, type = "pred", terms = c("party_cd", "age"), title = "Predicted Probabilities for 100% Voter Turnout", axis.title = c("Party Affiliation","Predicted Probability"), legend.title = "Age Group")
+```
+
+```{r echo=FALSE}
+plot_model(final_model, type = "pred", terms = c("party_cd", "age"), title = "Predicted Probabilities for 100% Voter Turnout", axis.title = c("Party Affiliation","Predicted Probability"), legend.title = "Age Group")
+```
